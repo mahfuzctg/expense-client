@@ -1,16 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { useBudgetSummary, useUpsertBudget } from '@/hooks/useBudget';
+import { useBudgetSummary, useUpdateBudget } from '@/hooks/useBudget';
 import { formatCurrency } from '@/utils/validation';
 import { cn } from '@/utils/cn';
+import { BudgetStatus } from '@/types';
 
-type BudgetStatus = 'empty' | 'ok' | 'warning' | 'danger';
-
-const monthOptions = [
+const MONTHS = [
   'January',
   'February',
   'March',
@@ -25,258 +24,228 @@ const monthOptions = [
   'December',
 ];
 
-type BudgetTrackerProps = {
-  month?: number;
-  year?: number;
-  onPeriodChange?: (period: { month: number; year: number }) => void;
+const getYearOptions = () => {
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 7 }, (_, index) => currentYear - 3 + index);
 };
 
-export const BudgetTracker = ({
-  month,
-  year,
-  onPeriodChange,
-}: BudgetTrackerProps) => {
-  const now = useMemo(() => new Date(), []);
-  const [selectedMonth, setSelectedMonth] = useState(month ?? now.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(year ?? now.getFullYear());
+const STATUS_CONFIG: Record<
+  BudgetStatus,
+  { label: string; badge: string; bar: string }
+> = {
+  safe: {
+    label: 'On track',
+    badge: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
+    bar: 'from-green-400 to-green-600',
+  },
+  warning: {
+    label: 'Approaching limit',
+    badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
+    bar: 'from-yellow-400 to-yellow-600',
+  },
+  danger: {
+    label: 'Over budget',
+    badge: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
+    bar: 'from-red-400 to-red-600',
+  },
+  not_set: {
+    label: 'No budget set',
+    badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-200',
+    bar: 'from-gray-300 to-gray-400',
+  },
+};
+
+interface BudgetTrackerProps {
+  compact?: boolean;
+}
+
+export const BudgetTracker = ({ compact = false }: BudgetTrackerProps) => {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const { data, isLoading, isFetching, isError, error } = useBudgetSummary({ month, year });
+  const updateBudget = useUpdateBudget();
+
   const [amountInput, setAmountInput] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof month === 'number' && month !== selectedMonth) {
-      setSelectedMonth(month);
-      return;
+    if (data?.budget?.amount !== undefined) {
+      setAmountInput(data.budget.amount.toString());
+    } else {
+      setAmountInput('');
     }
-    if (month === undefined) {
-      const fallbackMonth = now.getMonth() + 1;
-      if (selectedMonth !== fallbackMonth) {
-        setSelectedMonth(fallbackMonth);
-      }
-    }
-  }, [month, now, selectedMonth]);
-
-  useEffect(() => {
-    if (typeof year === 'number' && year !== selectedYear) {
-      setSelectedYear(year);
-      return;
-    }
-    if (year === undefined) {
-      const fallbackYear = now.getFullYear();
-      if (selectedYear !== fallbackYear) {
-        setSelectedYear(fallbackYear);
-      }
-    }
-  }, [year, now, selectedYear]);
-
-  const yearsList = useMemo(() => {
-    const current = now.getFullYear();
-    return Array.from({ length: 7 }, (_, idx) => current + 1 - idx);
-  }, [now]);
-
-  const { data: summary, isLoading, isFetching } = useBudgetSummary({
-    month: selectedMonth,
-    year: selectedYear,
-  });
-  const upsertBudget = useUpsertBudget();
-
-  useEffect(() => {
-    if (!summary) {
-      return;
-    }
-    setAmountInput(summary.amount >= 0 ? String(summary.amount) : '');
-  }, [summary]);
-
-  const statusCopy: Record<BudgetStatus, { label: string; badge: string }> = {
-    empty: {
-      label: 'No budget set',
-      badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-300',
-    },
-    ok: {
-      label: 'On track',
-      badge: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-200',
-    },
-    warning: {
-      label: 'Caution',
-      badge: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200',
-    },
-    danger: {
-      label: 'Over budget',
-      badge: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200',
-    },
-  };
-
-  const progressColor =
-    summary?.status === 'danger'
-      ? '#dc2626'
-      : summary?.status === 'warning'
-      ? '#d97706'
-      : '#10b981';
-  const progressAngle = Math.min(summary?.percentage ?? 0, 100) * 3.6;
-
-  const handlePeriodChange = (nextMonth: number, nextYear: number) => {
-    setSelectedMonth(nextMonth);
-    setSelectedYear(nextYear);
-    onPeriodChange?.({ month: nextMonth, year: nextYear });
-  };
+  }, [data?.budget?.amount, month, year]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const parsedAmount = Number(amountInput);
-    if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
-      setFormError('Enter a valid non-negative amount.');
+    setFormError(null);
+
+    if (amountInput === '') {
+      setFormError('Amount is required');
       return;
     }
-    setFormError(null);
-    upsertBudget.mutate({
-      amount: parsedAmount,
-      month: selectedMonth,
-      year: selectedYear,
-    });
+
+    const numericAmount = Number(amountInput);
+    if (Number.isNaN(numericAmount) || numericAmount < 0) {
+      setFormError('Please enter a valid amount greater than or equal to 0');
+      return;
+    }
+
+    updateBudget.mutate(
+      {
+        amount: numericAmount,
+        month,
+        year,
+      },
+      {
+        onError: (mutationError) => {
+          setFormError(mutationError instanceof Error ? mutationError.message : 'Failed to update budget');
+        },
+      }
+    );
   };
 
+  const summary = data;
+  const status = summary?.status ?? 'not_set';
+  const config = STATUS_CONFIG[status];
+  const usagePercent = summary?.hasBudget ? summary.percentage : 0;
+  const progressWidth = summary?.hasBudget ? Math.min(summary.percentage, 150) : 0;
+  const totalSpent = summary ? summary.totalExpenses : 0;
+  const budgetAmount = summary?.budget?.amount ?? 0;
+  const remainingAmount = summary?.hasBudget ? summary.remaining : 0;
+  const isBusy = isLoading || isFetching;
+
   return (
-    <Card className="mb-6 overflow-hidden" padding="lg">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <Card padding={compact ? 'md' : 'lg'}>
+      <div className="flex flex-col gap-4">
+        <div className={cn('flex flex-col gap-2', compact ? 'sm:flex-row sm:items-center sm:justify-between' : '')}>
           <div>
-            <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Monthly Budget Overview
-            </p>
+            <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Monthly Budget</p>
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              {monthOptions[selectedMonth - 1]} {selectedYear}
+              {MONTHS[month - 1]} {year}
             </h2>
-            {summary && (
-              <span
-                className={cn(
-                  'inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full mt-2',
-                  statusCopy[summary.status].badge
-                )}
-              >
-                {statusCopy[summary.status].label}
-              </span>
-            )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             <select
-              value={selectedMonth}
-              onChange={(e) => handlePeriodChange(Number(e.target.value), selectedYear)}
-              className="min-w-[150px] px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+              value={month}
+              onChange={(event) => setMonth(Number(event.target.value))}
             >
-              {monthOptions.map((label, idx) => (
-                <option key={label} value={idx + 1}>
+              {MONTHS.map((label, index) => (
+                <option key={label} value={index + 1}>
                   {label}
                 </option>
               ))}
             </select>
             <select
-              value={selectedYear}
-              onChange={(e) => handlePeriodChange(selectedMonth, Number(e.target.value))}
-              className="min-w-[120px] px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm"
+              value={year}
+              onChange={(event) => setYear(Number(event.target.value))}
             >
-              {yearsList.map((yr) => (
-                <option key={yr} value={yr}>
-                  {yr}
+              {getYearOptions().map((option) => (
+                <option key={option} value={option}>
+                  {option}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[1.2fr,0.8fr] gap-6">
-          <div className="space-y-4">
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Budget</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {summary ? formatCurrency(summary.amount) : '--'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Spent</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {summary ? formatCurrency(summary.spent) : '--'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 p-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Remaining</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {summary ? formatCurrency(summary.remaining) : '--'}
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={amountInput}
-                onChange={(event) => setAmountInput(event.target.value)}
-                label="Set monthly budget"
-                placeholder="Enter amount"
-                error={formError ?? undefined}
-              />
-              <div className="flex items-end">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="w-full sm:w-auto"
-                  isLoading={upsertBudget.isPending}
-                  disabled={isLoading || isFetching}
-                >
-                  {summary?.budgetId ? 'Update budget' : 'Save budget'}
-                </Button>
-              </div>
-            </form>
-            {upsertBudget.isSuccess && (
-              <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                Budget saved successfully.
-              </p>
-            )}
-            {upsertBudget.isError && (
-              <p className="text-sm text-red-600 dark:text-red-400">
-                {(upsertBudget.error instanceof Error && upsertBudget.error.message) ||
-                  'Failed to save budget. Please try again.'}
-              </p>
-            )}
+        {isError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+            {error instanceof Error ? error.message : 'Failed to load budget summary'}
           </div>
+        )}
 
-          <div className="flex flex-col items-center justify-center">
-            <div className="relative w-40 h-40">
-              <div
-                className="absolute inset-0 rounded-full transition-all duration-300"
-                style={{
-                  background: `conic-gradient(${progressColor} ${progressAngle}deg, rgba(148,163,184,0.2) ${progressAngle}deg)`,
-                }}
-              />
-              <div className="absolute inset-4 rounded-full bg-white dark:bg-gray-900 flex flex-col items-center justify-center text-center">
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Used
-                </span>
-                <span className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {summary ? `${Math.min(Math.round(summary.percentage), 999)}%` : '--'}
-                </span>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-              {summary
-                ? summary.status === 'danger'
-                  ? 'You have exceeded the budget.'
-                  : summary.status === 'warning'
-                  ? 'Approaching the budget limit.'
-                  : summary.status === 'empty'
-                  ? 'Set a budget to start tracking.'
-                  : 'Great job staying within budget!'
-                : 'Loading budget data...'}
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              {summary?.hasBudget ? 'Budget usage' : 'Set a budget to start tracking'}
+            </span>
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                config.badge
+              )}
+            >
+              {config.label}
+            </span>
+          </div>
+          <div className="relative h-3 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+            <div
+              className={cn(
+                'absolute inset-y-0 left-0 rounded-full bg-gradient-to-r transition-all duration-500',
+                config.bar
+              )}
+              style={{ width: `${progressWidth}%` }}
+            />
+          </div>
+          {summary?.hasBudget && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+              {usagePercent.toFixed(1)}% of your budget used
             </p>
-            {summary?.status === 'danger' && (
-              <div className="mt-3 w-full rounded-xl border border-red-200 dark:border-red-800 bg-red-50/70 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-200">
-                Spending has exceeded the budget. Review recent expenses to regain
-                control.
-              </div>
-            )}
+          )}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Spent</p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-white">{formatCurrency(totalSpent)}</p>
+          </div>
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Budget</p>
+            <p className="text-xl font-semibold text-gray-900 dark:text-white">
+              {summary?.hasBudget ? formatCurrency(budgetAmount) : 'Not set'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {status === 'danger' ? 'Overspent' : 'Remaining'}
+            </p>
+            <p
+              className={cn(
+                'text-xl font-semibold',
+                status === 'danger' ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+              )}
+            >
+              {summary?.hasBudget
+                ? status === 'danger'
+                  ? formatCurrency(Math.abs(remainingAmount))
+                  : formatCurrency(Math.max(remainingAmount, 0))
+                : '—'}
+            </p>
           </div>
         </div>
+
+        <form onSubmit={handleSubmit} className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="w-full sm:max-w-xs">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              label="Set monthly budget"
+              value={amountInput}
+              onChange={(event) => setAmountInput(event.target.value)}
+              error={formError ?? undefined}
+            />
+          </div>
+          <Button
+            type="submit"
+            variant="primary"
+            className="sm:w-auto"
+            isLoading={updateBudget.isPending}
+            disabled={isBusy}
+          >
+            {summary?.hasBudget ? 'Update Budget' : 'Save Budget'}
+          </Button>
+        </form>
+
+        {isBusy && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Syncing latest expenses and budget details...
+          </p>
+        )}
       </div>
     </Card>
   );

@@ -13,7 +13,11 @@ export const Header = () => {
   const logoutMutation = useLogout();
 
   const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
-  const isDashboardPage = pathname?.startsWith('/expenses') || pathname?.startsWith('/add-expense') || pathname?.startsWith('/chart');
+  const isDashboardPage =
+    pathname?.startsWith('/expenses') ||
+    pathname?.startsWith('/add-expense') ||
+    pathname?.startsWith('/chart') ||
+    pathname?.startsWith('/budget');
 
   if (isAuthPage) {
     return (
@@ -70,6 +74,17 @@ export const Header = () => {
                   )}
                 >
                   Charts
+                </Link>
+                <Link
+                  href="/budget"
+                  className={cn(
+                    'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    pathname === '/budget'
+                      ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/40 dark:text-primary-200'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                  )}
+                >
+                  Budget
                 </Link>
               </>
             )}

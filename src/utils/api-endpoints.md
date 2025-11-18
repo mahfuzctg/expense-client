@@ -16,7 +16,12 @@ This document lists all API endpoints used in the application.
 - `POST /api/expenses` - Create expense
 - `PUT /api/expenses/:id` - Update expense
 - `DELETE /api/expenses/:id` - Delete expense
-- `GET /api/expenses/stats` - Get expense statistics
+- `GET /api/expenses/chart` - Get expense statistics summary
+
+## Budget Endpoints
+
+- `GET /api/budget` - Get monthly budget summary (accepts optional `month` and `year`)
+- `PUT /api/budget` - Create or update the monthly budget for a selected period
 
 ## Request/Response Formats
 

@@ -8,7 +8,7 @@ const getApiBaseUrl = () => {
     console.warn(
       'NEXT_PUBLIC_API_URL is not set. Falling back to http://localhost:5000'
     );
-    return 'http://localhost:5000';
+    return 'https://backend-iota-lac-51.vercel.app';
   }
   return url.replace(/\/$/, '');
 };
@@ -34,9 +34,8 @@ export const API_ENDPOINTS = {
     DELETE: (id: string) => buildApiUrl(`/api/expenses/${id}`),
     STATS: buildApiUrl('/api/expenses/chart'),
   },
-  BUDGETS: {
-    SUMMARY: buildApiUrl('/api/budgets'),
-    UPSERT: buildApiUrl('/api/budgets'),
+  BUDGET: {
+    SUMMARY: buildApiUrl('/api/budget'),
   },
   HEALTH: buildApiUrl('/api/health'),
 } as const;

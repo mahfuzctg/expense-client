@@ -84,11 +84,6 @@ function ExpensesPageContent() {
     setYear(filters.year);
   };
 
-  const handleBudgetPeriodChange = (period: { month: number; year: number }) => {
-    setMonth(String(period.month));
-    setYear(String(period.year));
-  };
-
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
@@ -113,11 +108,9 @@ function ExpensesPageContent() {
         </div>
       </div>
 
-      <BudgetTracker
-        month={month ? Number(month) : undefined}
-        year={year ? Number(year) : undefined}
-        onPeriodChange={handleBudgetPeriodChange}
-      />
+      <div className="mb-6">
+        <BudgetTracker compact />
+      </div>
 
       <Card className="mb-4" padding="lg">
         <ExpenseFilters

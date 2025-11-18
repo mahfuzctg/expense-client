@@ -58,15 +58,34 @@ export interface ExpenseCategorySummary {
 
 export type ExpenseStats = ExpenseCategorySummary[];
 
-export interface BudgetSummary {
-  budgetId?: string;
+// Budget types
+export interface Budget {
+  id: string;
   amount: number;
-  spent: number;
+  month: number;
+  year: number;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BudgetStatus = 'safe' | 'warning' | 'danger' | 'not_set';
+
+export interface BudgetSummary {
+  budget: Budget | null;
+  totalExpenses: number;
   remaining: number;
   percentage: number;
   month: number;
   year: number;
-  status: 'empty' | 'ok' | 'warning' | 'danger';
+  status: BudgetStatus;
+  hasBudget: boolean;
+}
+
+export interface UpsertBudgetDto {
+  amount: number;
+  month?: number;
+  year?: number;
 }
 
 // API Response types

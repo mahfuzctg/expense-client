@@ -40,7 +40,7 @@ export const useCreateExpense = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expenseStats'] });
-      queryClient.invalidateQueries({ queryKey: ['budgetSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'] });
     },
   });
 };
@@ -54,7 +54,7 @@ export const useUpdateExpense = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expenseStats'] });
-      queryClient.invalidateQueries({ queryKey: ['budgetSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'] });
     },
   });
 };
@@ -67,7 +67,7 @@ export const useDeleteExpense = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['expenseStats'] });
-      queryClient.invalidateQueries({ queryKey: ['budgetSummary'] });
+      queryClient.invalidateQueries({ queryKey: ['budget'] });
     },
   });
 };
